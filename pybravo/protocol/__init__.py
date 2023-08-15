@@ -21,5 +21,6 @@
 from .device_id import DeviceID
 from .packet import Packet
 from .packet_id import PacketID
+from .mode_id import ModeID
 
-__all__ = ["DeviceID", "PacketID", "Packet"]
+__all__ = ["DeviceID", "PacketID", "Packet", "ModeID"]

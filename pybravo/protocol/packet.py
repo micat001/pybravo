@@ -37,6 +37,7 @@ from crc import Calculator, Configuration
 
 from pybravo.protocol.device_id import DeviceID
 from pybravo.protocol.packet_id import PacketID
+from pybravo.protocol.mode_id import ModeID
 
 
 class Packet:
@@ -64,6 +65,7 @@ class Packet:
         self.device_id = device_id
         self.packet_id = packet_id
         self.data = data
+        self.value = None
 
     def __str__(self) -> str:
         """Print the packet as a string.

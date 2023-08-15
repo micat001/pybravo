@@ -19,6 +19,6 @@
 # SOFTWARE.
 
 from .driver import BravoDriver
-from .protocol import DeviceID, Packet, PacketID
+from .protocol import DeviceID, Packet, PacketID, ModeID
 
-__all__ = ["BravoDriver", "Packet", "PacketID", "DeviceID"]
+__all__ = ["BravoDriver", "Packet", "PacketID", "DeviceID", "ModeID"]
