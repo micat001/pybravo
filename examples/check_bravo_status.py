@@ -2,15 +2,13 @@
 API Wrapper to query Bravo Status for all modes.
 """
 
-import atexit
-import struct
 import sys
-import threading
 import time
+import yaml
 
-from bravo_status import BravoRequests, BravoStatus
-
-from pybravo import PacketID
+from utils import compare_status
+from bravo_status import BravoStatus
+from pybravo import PacketID, DeviceID
 
 
 REALTIME_DESIRED_PACKETS = [
@@ -31,14 +29,20 @@ STARTUP_DESIRED_PACKETS = [
 ]
 
 
+BRAVO_XACRO = "/home/marcmicatka/Documents/raven_manipulation/src/bravo_ros/bravo_description/urdf/bravo/bravo_7_arm_only.xacro"
+BRAVO_LIMITS = "/home/marcmicatka/Documents/raven_manipulation/src/raven_manip_sw/params/bravo_limits.yaml"
+
+
 if __name__ == "__main__":
     status = BravoStatus(REALTIME_DESIRED_PACKETS, STARTUP_DESIRED_PACKETS)
-
-    status.print_startup_status()
+    current_properties = status.get_startup_status()
+    # status.print_startup_status()
+    compare_status(current_properties, BRAVO_LIMITS)
 
     # while True:
     #     try:
+    #         status.print_rt_status()
     #         time.sleep(0.1)
     #     except KeyboardInterrupt:
-    #         status.stop()
+    #         # status.stop()
     #         sys.exit()

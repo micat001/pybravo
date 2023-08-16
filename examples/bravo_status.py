@@ -5,95 +5,18 @@ import atexit
 
 from pybravo import BravoDriver, PacketID, DeviceID, Packet, ModeID
 
-
-def parse_data(packet):
-    """parses bravo packet data based on protocol"""
-    if packet.packet_id == PacketID.SOFTWARE_VERSION:
-        data = (packet.data[0], packet.data[1], packet.data[2])
-    elif packet.packet_id == PacketID.MODE:
-        data = ModeID(packet.data[0])
-    elif packet.packet_id in (
-        PacketID.POSITION_LIMITS,
-        PacketID.VELOCITY_LIMITS,
-        PacketID.CURRENT_LIMITS,
-    ):
-        data = struct.unpack("ff", packet.data)
-
-    else:
-        data = struct.unpack("<f", packet.data)[0]
-
-    return data
-
-
-class BravoRequests:
-    """Class listing different requests"""
-
-    position = Packet(
-        DeviceID.ALL_JOINTS, PacketID.REQUEST, bytes([PacketID.POSITION.value])
-    )
-    velocity = Packet(
-        DeviceID.ALL_JOINTS, PacketID.REQUEST, bytes([PacketID.VELOCITY.value])
-    )
-    current = Packet(
-        DeviceID.ALL_JOINTS, PacketID.REQUEST, bytes([PacketID.CURRENT.value])
-    )
-    temperature = Packet(
-        DeviceID.ALL_JOINTS, PacketID.REQUEST, bytes([PacketID.TEMPERATURE.value])
-    )
-    serial_number = Packet(
-        DeviceID.ALL_JOINTS, PacketID.REQUEST, bytes([PacketID.SERIAL_NUMBER.value])
-    )
-    model_number = Packet(
-        DeviceID.ALL_JOINTS, PacketID.REQUEST, bytes([PacketID.MODEL_NUMBER.value])
-    )
-    voltage = Packet(
-        DeviceID.ALL_JOINTS, PacketID.REQUEST, bytes([PacketID.VOLTAGE.value])
-    )
-    version = Packet(
-        DeviceID.ALL_JOINTS, PacketID.REQUEST, bytes([PacketID.SOFTWARE_VERSION.value])
-    )
-    mode = Packet(DeviceID.ALL_JOINTS, PacketID.REQUEST, bytes([PacketID.MODE.value]))
-    position_limits = Packet(
-        DeviceID.ALL_JOINTS, PacketID.REQUEST, bytes([PacketID.POSITION_LIMITS.value])
-    )
-    velocity_limits = Packet(
-        DeviceID.ALL_JOINTS, PacketID.REQUEST, bytes([PacketID.VELOCITY_LIMITS.value])
-    )
-    current_limits = Packet(
-        DeviceID.ALL_JOINTS, PacketID.REQUEST, bytes([PacketID.CURRENT_LIMITS.value])
-    )
-    heartbeat_frequency = Packet(
-        DeviceID.ALL_JOINTS,
-        PacketID.REQUEST,
-        bytes([PacketID.HEARTBEAT_FREQUENCY.value]),
-    )
-
-    requests = {
-        PacketID.POSITION: position,
-        PacketID.VELOCITY: velocity,
-        PacketID.CURRENT: current,
-        PacketID.TEMPERATURE: temperature,
-        PacketID.SERIAL_NUMBER: serial_number,
-        PacketID.MODEL_NUMBER: model_number,
-        PacketID.VOLTAGE: voltage,
-        PacketID.SOFTWARE_VERSION: version,
-        PacketID.MODE: mode,
-        PacketID.HEARTBEAT_FREQUENCY: heartbeat_frequency,
-        PacketID.POSITION_LIMITS: position_limits,
-        PacketID.VELOCITY_LIMITS: velocity_limits,
-        PacketID.CURRENT_LIMITS: current_limits,
-    }
+from utils import parse_data, requests
 
 
 class BravoStatus:
-    """Class to print out the bravo status"""
+    """Class to check and print out the bravo status"""
 
     def __init__(self, realtime_packets, startup_packets) -> None:
         # Create Bravo Driver:
         self._bravo = BravoDriver()
         self._bravo.connect()
 
-        self.req = BravoRequests()
+        self.requests = requests
         self.realtime_packets = realtime_packets
         self.startup_packets = startup_packets
         self._running = False
@@ -102,8 +25,8 @@ class BravoStatus:
 
         # All Bravo Properties
         self.properties = {}
-        for i in range(1, 7):
-            self.properties[DeviceID(i)] = {}
+        for i in range(0, 7):
+            self.properties[DeviceID(i + 1)] = {}
 
         for packet_id in self.realtime_packets:
             self._bravo.attach_callback(packet_id, self.packet_callback)
@@ -115,12 +38,12 @@ class BravoStatus:
         self.poll_startup_status()
 
         # Make sure that we shutdown the interface when we exit
-        # atexit.register(self.stop)
+        atexit.register(self.stop)
 
     def poll_startup_status(self) -> None:
         """blah"""
         for packet in self.startup_packets:
-            self._bravo.send(self.req.requests[packet])
+            self._bravo.send(self.requests[packet])
             time.sleep(0.01)
 
     def poll_realtime_status(self) -> None:
@@ -133,7 +56,7 @@ class BravoStatus:
 
         while self._running:
             for packet in self.realtime_packets:
-                self._bravo.send(self.req.requests[packet])
+                self._bravo.send(self.requests[packet])
                 time.sleep(0.01)
 
     def start(self) -> None:
@@ -151,8 +74,11 @@ class BravoStatus:
         self._running = False
         time.sleep(0.01)
         # Disconnect the bravo driver
-        self._bravo.disconnect()
-        self.poll_t.join()
+        try:
+            self._bravo.disconnect()
+            self.poll_t.join()
+        except AttributeError:
+            ...
 
     def packet_callback(self, packet: Packet) -> None:
         """
@@ -160,21 +86,61 @@ class BravoStatus:
             packet: The joint position packet.
         """
         try:
-            data = parse_data(packet)
-            self.properties[packet.device_id][packet.packet_id] = data
+            self.properties[packet.device_id][packet.packet_id] = parse_data(packet)
         except KeyError:
             pass
 
+    def get_startup_status(self) -> dict:
+        """_summary_
+
+        Returns:
+            dict: _description_
+        """
+        if self._startup_status is False:
+            self.poll_startup_status()
+            self._startup_status = True
+        return self.properties
+
     def print_startup_status(self) -> None:
-        """ """
+        """_summary_"""
         if self._startup_status is False:
             self.poll_startup_status()
             self._startup_status = True
 
-        for dev_k, dev_v in self.properties.items():
+        device_status = [
+            PacketID.SERIAL_NUMBER,
+            PacketID.MODEL_NUMBER,
+            PacketID.SOFTWARE_VERSION,
+            PacketID.HEARTBEAT_FREQUENCY,
+        ]
+
+        joint_status = [
+            PacketID.POSITION_LIMITS,
+            PacketID.VELOCITY_LIMITS,
+            PacketID.CURRENT_LIMITS,
+        ]
+
+        print("----------DEVICE STATUS----------")
+        for dev_k, _ in self.properties.items():
             for prop_k, prop_v in self.properties[dev_k].items():
-                if prop_k in self.startup_packets:
-                    print(dev_k, prop_k, prop_v)
+                if prop_k in device_status:
+                    if prop_k == PacketID.SERIAL_NUMBER:
+                        print(f"{prop_k.name}: \t\t{prop_v:.0f}")
+                    elif prop_k == PacketID.SOFTWARE_VERSION:
+                        print(f"{prop_k.name}: \t{prop_v}")
+
+                    elif prop_k == PacketID.MODEL_NUMBER:
+                        print(f"{prop_k.name}: \t\t{prop_v}")
+            break
+        print()
+
+        print("----------JOINT STATUS----------")
+        for dev_k, _ in self.properties.items():
+            print(f"{dev_k.name}:")
+            for prop_k, prop_v in self.properties[dev_k].items():
+                if prop_k in joint_status:
+                    print(f"\t{prop_k.name}: \t[{prop_v[1]:.2f}, {prop_v[0]:.2f}]")
+            print()
 
     def print_rt_status(self) -> None:
         pass

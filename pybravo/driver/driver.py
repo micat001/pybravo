@@ -51,6 +51,7 @@ class BravoDriver:
         # Leave this private because we don't want anyone to accidentally disable the
         # polling thread
         self._running = False
+        self._display_connected_status = True
 
         # Set the address to none during configuration to enable changing the address
         # when the connection happens
@@ -83,9 +84,6 @@ class BravoDriver:
 
         self._running = True
         self._poll_t.start()
-        self._logger.info(
-            "Successfully established a connection to the Reach Bravo 7 manipulator."
-        )
 
     def disconnect(self) -> None:
         """Disconnect the driver from the Bravo 7."""
@@ -140,20 +138,32 @@ class BravoDriver:
             else:
                 if read_data == b"":
                     continue
-
                 try:
                     packet = Packet.decode(read_data)
                 except Exception as ex:
-                    self._logger.debug("An error occurred while attempting to decode the data: %r, %s", read_data, ex)
+                    self._logger.debug(
+                        "An error occurred while attempting to decode the data: %r, %s",
+                        read_data,
+                        ex,
+                    )
                 else:
+                    if self._display_connected_status:
+                        self._logger.info(
+                            "Successfully established a connection to the Reach Bravo 7 manipulator."
+                        )
+                        self._display_connected_status = False
                     try:
                         if packet.packet_id in self.callbacks:
                             for cb in self.callbacks[packet.packet_id]:
                                 cb(packet)
                         else:
-                            self._logger.warning("Received unexpected packet_id %s with no associated callback", packet.packet_id)
+                            self._logger.warning(
+                                "Received unexpected packet_id %s with no associated callback",
+                                packet.packet_id,
+                            )
 
                     except Exception as ex:
                         self._logger.warning(
                             "An exception occurred while trying to execute a callback for the packet %s.",
-                            ex)
+                            ex,
+                        )
