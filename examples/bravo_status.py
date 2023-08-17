@@ -2,10 +2,12 @@ import struct
 import time
 import threading
 import atexit
+import yaml
+
+import numpy as np
 
 from pybravo import BravoDriver, PacketID, DeviceID, Packet, ModeID
-
-from utils import parse_data, requests
+from utils import parse_data, requests, axis_map, bcolors
 
 
 class BravoStatus:
@@ -38,7 +40,7 @@ class BravoStatus:
         self.poll_startup_status()
 
         # Make sure that we shutdown the interface when we exit
-        atexit.register(self.stop)
+        # atexit.register(self.stop)
 
     def poll_startup_status(self) -> None:
         """blah"""
@@ -144,3 +146,105 @@ class BravoStatus:
 
     def print_rt_status(self) -> None:
         pass
+
+    def set_parameter(self, device_id, packet_id, packed_data) -> None:
+        packet = Packet(device_id, packet_id, packed_data)
+        self._bravo.send(packet)
+
+    def print_comparison(self, equal, print_vals, desired, actual, limit_name):
+        if print_vals:
+            if equal:
+                print(
+                    f"   {bcolors.OKGREEN}{bcolors.BOLD}{limit_name} Limits:{bcolors.ENDC}"
+                )
+                print(
+                    f"{bcolors.OKGREEN}\tDesired: ({desired[0]:.2f}, {desired[1]:.2f})\n\tActual: ({actual[0]:.2f}, {actual[1]:.2f}){bcolors.ENDC}"
+                )
+            else:
+                print(
+                    f"   {bcolors.WARNING}{bcolors.BOLD}{limit_name} Limits:{bcolors.ENDC}"
+                )
+                print(
+                    f"{bcolors.WARNING}\tDesired: ({desired[0]:.2f}, {desired[1]:.2f})\n\tActual: ({actual[0]:.2f}, {actual[1]:.2f}){bcolors.ENDC}"
+                )
+
+    def compare_status(
+        self, curr_props: dict, bravo_limits_yaml: str, print_vals=True
+    ) -> bool:
+        """_summary_
+
+        Args:
+            curr_props (dict): _description_
+            bravo_limits_yaml (str): _description_
+            print_vals (bool): _description_
+
+        Returns:
+            bool: _description_
+        """
+        # Load desired limits as yaml into dictionary:
+        limit_dict = None
+        all_equal = True
+
+        with open(bravo_limits_yaml, "r") as stream:
+            try:
+                limit_dict = yaml.safe_load(stream)
+            except yaml.YAMLError as exc:
+                print(exc)
+
+        if limit_dict:
+            props = limit_dict["joint_limits"]
+            for k, _ in props.items():
+                if k in axis_map:
+                    print(
+                        f"{bcolors.HEADER}{bcolors.BOLD}{axis_map[k].name}{bcolors.ENDC}"
+                    )
+                    if props[k]["has_position_limits"]:
+                        desired = tuple(props[k]["position_limits"])
+                        actual = curr_props[axis_map[k]][PacketID.POSITION_LIMITS]
+                        equal = np.allclose(desired, actual, atol=0.1)
+                        if not equal:
+                            self.set_parameter(
+                                axis_map[k],
+                                PacketID.POSITION_LIMITS,
+                                struct.pack("ff", *desired),
+                            )
+                            all_equal = False
+                        self.print_comparison(
+                            equal, print_vals, desired, actual, "Position"
+                        )
+
+                    if props[k]["has_current_limits"]:
+                        desired = tuple(props[k]["current_limits"])
+                        actual = curr_props[axis_map[k]][PacketID.CURRENT_LIMITS]
+                        equal = np.allclose(desired, actual, atol=0.1)
+                        if not equal:
+                            self.set_parameter(
+                                axis_map[k],
+                                PacketID.CURRENT_LIMITS,
+                                struct.pack("ff", *desired),
+                            )
+                            all_equal = False
+                        self.print_comparison(
+                            equal, print_vals, desired, actual, "Current"
+                        )
+
+                    if props[k]["has_velocity_limits"]:
+                        desired = tuple(props[k]["velocity_limits"])
+                        actual = curr_props[axis_map[k]][PacketID.VELOCITY_LIMITS]
+                        equal = np.allclose(desired, actual, atol=0.1)
+                        if not equal:
+                            self.set_parameter(
+                                axis_map[k],
+                                PacketID.VELOCITY_LIMITS,
+                                struct.pack("ff", *desired),
+                            )
+                            all_equal = False
+                        self.print_comparison(
+                            equal, print_vals, desired, actual, "Velocity"
+                        )
+
+        else:
+            print("Couldn't Load Limit File as Dictionary!")
+            return False
+
+        return all_equal

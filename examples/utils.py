@@ -14,7 +14,20 @@ from pybravo.protocol.device_id import DeviceID
 from pybravo.protocol.packet import Packet
 from pybravo.protocol.mode_id import ModeID
 
-map = {
+
+class bcolors:
+    HEADER = "\033[95m"
+    OKBLUE = "\033[94m"
+    OKCYAN = "\033[96m"
+    OKGREEN = "\033[92m"
+    WARNING = "\033[93m"
+    FAIL = "\033[91m"
+    ENDC = "\033[0m"
+    BOLD = "\033[1m"
+    UNDERLINE = "\033[4m"
+
+
+axis_map = {
     "bravo_axis_a": DeviceID.LINEAR_JAWS,
     "bravo_axis_b": DeviceID.ROTATE_END_EFFECTOR,
     "bravo_axis_c": DeviceID.BEND_FOREARM,
@@ -97,47 +110,6 @@ def parse_data(self):
         parsed_data = struct.unpack("<f", self.data)[0]
 
     return parsed_data
-
-
-def compare_status(curr_props: dict, bravo_limits_yaml: str):
-    """_summary_
-
-    Args:
-        current_properties (_type_): _description_
-        bravo_limits_yaml (_type_): _description_
-    """
-
-    # Load desired limits as yaml into dictionary:
-    limit_dict = None
-
-    with open(bravo_limits_yaml, "r") as stream:
-        try:
-            limit_dict = yaml.safe_load(stream)
-        except yaml.YAMLError as exc:
-            print(exc)
-
-    if limit_dict:
-        props = limit_dict["joint_limits"]
-        for k, _ in props.items():
-            if k in map.keys():
-                if props[k]["has_position_limits"]:
-                    desired = tuple(props[k]["position_limits"])
-                    actual = curr_props[map[k]][PacketID.POSITION_LIMITS]
-
-                    if not np.allclose(desired, actual, atol=0.1):
-                        print(map[k].name, desired, actual)
-
-                if props[k]["has_current_limits"]:
-                    desired = tuple(props[k]["current_limits"])
-                    actual = curr_props[map[k]][PacketID.CURRENT_LIMITS]
-                    if not np.allclose(desired, actual, atol=0.1):
-                        print(map[k].name, desired, actual)
-
-                if props[k]["has_velocity_limits"]:
-                    desired = tuple(props[k]["velocity_limits"])
-                    actual = curr_props[map[k]][PacketID.VELOCITY_LIMITS]
-                    if not np.allclose(desired, actual, atol=0.1):
-                        print(map[k].name, desired, actual)
 
 
 def element_to_dict(element):

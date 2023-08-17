@@ -6,9 +6,9 @@ import sys
 import time
 import yaml
 
-from utils import compare_status
 from bravo_status import BravoStatus
 from pybravo import PacketID, DeviceID
+from utils import bcolors
 
 
 REALTIME_DESIRED_PACKETS = [
@@ -28,21 +28,16 @@ STARTUP_DESIRED_PACKETS = [
     PacketID.CURRENT_LIMITS,
 ]
 
-
-BRAVO_XACRO = "/home/marcmicatka/Documents/raven_manipulation/src/bravo_ros/bravo_description/urdf/bravo/bravo_7_arm_only.xacro"
 BRAVO_LIMITS = "/home/marcmicatka/Documents/raven_manipulation/src/raven_manip_sw/params/bravo_limits.yaml"
 
 
 if __name__ == "__main__":
     status = BravoStatus(REALTIME_DESIRED_PACKETS, STARTUP_DESIRED_PACKETS)
     current_properties = status.get_startup_status()
-    # status.print_startup_status()
-    compare_status(current_properties, BRAVO_LIMITS)
 
-    # while True:
-    #     try:
-    #         status.print_rt_status()
-    #         time.sleep(0.1)
-    #     except KeyboardInterrupt:
-    #         # status.stop()
-    #         sys.exit()
+    while not status.compare_status(current_properties, BRAVO_LIMITS):
+        print("Trying to set limits properly...")
+        time.sleep(1.0)
+    print(
+        f"\n{bcolors.OKGREEN}{bcolors.BOLD}All Properties Set! Manipulate Away! {bcolors.ENDC}"
+    )
