@@ -51,6 +51,7 @@ class BravoDriver:
         # Leave this private because we don't want anyone to accidentally disable the
         # polling thread
         self._running = False
+        self._connected_status = False
 
         # Set the address to none during configuration to enable changing the address
         # when the connection happens
@@ -83,9 +84,6 @@ class BravoDriver:
 
         self._running = True
         self._poll_t.start()
-        self._logger.info(
-            "Successfully established a connection to the Reach Bravo 7 manipulator."
-        )
 
     def disconnect(self) -> None:
         """Disconnect the driver from the Bravo 7."""
@@ -151,6 +149,11 @@ class BravoDriver:
                         e,
                     )
                 else:
+                    if not self._connected_status:
+                        self._logger.info(
+                            "Successfully established a connection to the Reach Bravo 7 manipulator."
+                        )
+                        self._connected_status = True
                     try:
                         for cb in self.callbacks[packet.packet_id]:
                             cb(packet)
