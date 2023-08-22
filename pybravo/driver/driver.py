@@ -92,12 +92,13 @@ class BravoDriver:
         # Reset the address for future connections
         self.address = None
 
-        # Stop the thread
-        self._running = False
-        self._poll_t.join()
-        self._logger.info(
-            "Successfully shut down the connection to the Reach Bravo 7 manipulator."
-        )
+        if self._running:
+            # Stop the thread
+            self._running = False
+            self._poll_t.join()
+            self._logger.info(
+                "Successfully shut down the connection to the Reach Bravo 7 manipulator."
+            )
 
     def send(self, packet: Packet) -> None:
         """Send a packet to the Bravo 7.
